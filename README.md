@@ -1,6 +1,6 @@
 # XCROP Python SDK
 
-Official Python client for the [XCROP API](https://xcrop.io) — X/Twitter data intelligence platform.
+Official Python client for the [XCROP API](https://xcrop.io) — X/Twitter data intelligence platform. 39 endpoints covering profile lookup, timelines, search, lists, communities, account monitoring, write operations, and interaction/eligibility checks.
 
 ## Installation
 
@@ -50,7 +50,9 @@ mentions = client.users.mentions("elonmusk")
 replies = client.users.replies("elonmusk")
 media = client.users.media("elonmusk")
 verified = client.users.verified_followers("elonmusk")
-likes = client.users.likes("elonmusk")
+
+# Bulk follower IDs (up to 5,000 per call, no profile metadata)
+ids = client.users.followers_ids("elonmusk", count=5000)
 
 # Auto-paginate (fetches all pages, yields individual items)
 for tweet in client.users.tweets.paginate("elonmusk", count=200):
@@ -59,8 +61,17 @@ for tweet in client.users.tweets.paginate("elonmusk", count=200):
 # Batch lookup (up to 100)
 users = client.users.batch(["elonmusk", "jack", "vaboronin"])
 
-# Relationship check
-rel = client.users.relationship(source="jack", target="elonmusk")
+# Follow relationship check — does `source` follow `target`?
+rel = client.users.check_follow(source="jack", target="elonmusk")
+print(rel["data"]["source_follows_target"])
+
+# Eligibility checks (for giveaway/airdrop gating)
+account_ok = client.users.check_qualified_account(
+    "elonmusk", min_followers=100, min_age_days=30,
+)
+name_ok = client.users.check_qualified_name(
+    "elonmusk", contains="Musk", position="anywhere",
+)
 
 # Follow / unfollow (requires connected account)
 client.users.follow("jack")
@@ -76,12 +87,9 @@ tweet = client.tweets.get("1234567890")
 # Conversation thread
 conv = client.tweets.conversation("1234567890", count=50)
 
-# Quotes, likers, retweeters (with pagination)
+# Quotes (with pagination)
 for quote in client.tweets.quotes.paginate("1234567890", count=100):
     print(quote["text"])
-
-for liker in client.tweets.likers.paginate("1234567890", count=100):
-    print(liker["username"])
 
 # Batch lookup
 tweets = client.tweets.batch(["123", "456", "789"])
@@ -101,6 +109,9 @@ client.tweets.unretweet("1234567890")
 # Interaction checks (no connected account needed)
 check = client.tweets.check_retweet("1234567890", username="jack")
 print(check["data"]["result"])  # True/False
+
+# check_reply / check_quote also accept an optional min_tags (0-20)
+check = client.tweets.check_reply("1234567890", username="jack", min_tags=1)
 ```
 
 ### Search
@@ -151,10 +162,23 @@ for topic in trending["data"]:
     print(topic["name"], topic.get("tweet_count"))
 ```
 
-### KOL Timeline
+### Communities (beta)
+
+> Communities endpoints are still rolling out and may return a `503`
+> (`ServerError`) while the underlying data source stabilizes.
 
 ```python
-timeline = client.kol.timeline(["elonmusk", "jack", "vitalikbuterin"], count=50)
+from xcrop import ServerError
+
+try:
+    community = client.communities.get("1708766018985501165")
+    tweets = client.communities.tweets("1708766018985501165", count=50)
+    members = client.communities.members("1708766018985501165", count=50)
+
+    for tweet in client.communities.tweets.paginate("1708766018985501165", count=200):
+        print(tweet["text"])
+except ServerError:
+    print("Communities data source temporarily unavailable")
 ```
 
 ### Account Management
@@ -242,6 +266,29 @@ import httpx
 http = httpx.Client(proxy="http://proxy:8080")
 client = XCropClient(api_key="xc_live_...", http_client=http)
 ```
+
+## Rate Limits & Plans
+
+Per-minute request limits are enforced per plan (in addition to the monthly
+credit allowance):
+
+| Plan    | Requests / min |
+|---------|-----------------|
+| Starter | 60              |
+| Basic   | 300             |
+| Pro     | 600             |
+| PAYG    | 300             |
+
+Exceeding the limit raises `RateLimitError` (the SDK auto-retries 429s with
+backoff before raising). See [xcrop.io/pricing](https://xcrop.io/pricing) for
+credit costs per endpoint.
+
+## Billing
+
+Plans and credit top-ups are paid via cryptocurrency: **USDT (BEP-20)**,
+**USDC (BEP-20)**, **SOL**, and **POL**. Credit card payments via Stripe are
+coming soon. See [xcrop.io/pricing](https://xcrop.io/pricing) and the
+dashboard billing page to manage your subscription.
 
 ## API Response Format
 

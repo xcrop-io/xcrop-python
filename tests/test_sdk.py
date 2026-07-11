@@ -22,7 +22,7 @@ from xcrop._http import _parse_sse_data, HttpTransport
 # ---------------------------------------------------------------------------
 
 def test_version_exists():
-    assert __version__ == "1.0.0"
+    assert __version__ == "1.0.1"
 
 
 # ---------------------------------------------------------------------------
@@ -141,19 +141,7 @@ def test_account_connect_with_credentials():
 
 
 # ---------------------------------------------------------------------------
-# KOL validation
-# ---------------------------------------------------------------------------
-
-def test_kol_empty_usernames_raises():
-    transport = MagicMock()
-    from xcrop.resources.kol import KolResource
-    resource = KolResource(transport)
-    with pytest.raises(ValueError, match="empty"):
-        resource.timeline([])
-
-
-# ---------------------------------------------------------------------------
-# Users — likes endpoint removed
+# Users — likes / kol endpoints removed
 # ---------------------------------------------------------------------------
 
 def test_users_no_likes_attribute():
@@ -161,6 +149,69 @@ def test_users_no_likes_attribute():
     from xcrop.resources.users import UsersResource
     resource = UsersResource(transport)
     assert not hasattr(resource, "likes")
+
+
+def test_users_no_relationship_method():
+    """`.relationship()` was removed — replaced by `.check_follow()`."""
+    transport = MagicMock()
+    from xcrop.resources.users import UsersResource
+    resource = UsersResource(transport)
+    assert not hasattr(resource, "relationship")
+
+
+def test_client_has_no_kol_resource():
+    """The `kol` resource was removed — `/kol/timeline` no longer exists."""
+    client = XCropClient(api_key="test")
+    assert not hasattr(client, "kol")
+    client.close()
+
+
+def test_users_check_follow():
+    transport = MagicMock()
+    transport.get.return_value = {"data": {"source_follows_target": True}}
+    from xcrop.resources.users import UsersResource
+    resource = UsersResource(transport)
+    result = resource.check_follow(source="jack", target="elonmusk")
+    assert result == {"data": {"source_follows_target": True}}
+    transport.get.assert_called_once_with("/users/check-follow", source="jack", target="elonmusk")
+
+
+def test_users_check_qualified_account():
+    transport = MagicMock()
+    transport.get.return_value = {"data": {"qualified": True}}
+    from xcrop.resources.users import UsersResource
+    resource = UsersResource(transport)
+    result = resource.check_qualified_account("elonmusk", min_followers=100, min_age_days=30)
+    assert result == {"data": {"qualified": True}}
+
+
+def test_users_check_qualified_name():
+    transport = MagicMock()
+    transport.get.return_value = {"data": {"qualified": True}}
+    from xcrop.resources.users import UsersResource
+    resource = UsersResource(transport)
+    result = resource.check_qualified_name("elonmusk", contains="Musk", position="anywhere")
+    assert result == {"data": {"qualified": True}}
+
+
+# ---------------------------------------------------------------------------
+# Communities (beta)
+# ---------------------------------------------------------------------------
+
+def test_communities_get():
+    transport = MagicMock()
+    transport.get.return_value = {"data": {"id": "123"}}
+    from xcrop.resources.communities import CommunitiesResource
+    resource = CommunitiesResource(transport)
+    result = resource.get("123")
+    assert result == {"data": {"id": "123"}}
+    transport.get.assert_called_once_with("/communities/123")
+
+
+def test_client_has_communities_resource():
+    client = XCropClient(api_key="test")
+    assert client.communities is not None
+    client.close()
 
 
 # ---------------------------------------------------------------------------

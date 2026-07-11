@@ -10,14 +10,14 @@ from ._http import AsyncHttpTransport, HttpTransport, DEFAULT_BASE_URL, DEFAULT_
 from .resources import (
     AccountResource,
     AsyncAccountResource,
-    AsyncKolResource,
+    AsyncCommunitiesResource,
     AsyncListsResource,
     AsyncSearchResource,
     AsyncStreamResource,
     AsyncTrendingResource,
     AsyncTweetsResource,
     AsyncUsersResource,
-    KolResource,
+    CommunitiesResource,
     ListsResource,
     SearchResource,
     StreamResource,
@@ -62,8 +62,8 @@ class XCropClient:
         self.tweets = TweetsResource(self._transport)
         self.search = SearchResource(self._transport)
         self.lists = ListsResource(self._transport)
+        self.communities = CommunitiesResource(self._transport)
         self.trending = TrendingResource(self._transport)
-        self.kol = KolResource(self._transport)
         self.account = AccountResource(self._transport)
         self.stream = StreamResource(self._transport)
 
@@ -109,8 +109,8 @@ class AsyncXCropClient:
         self.tweets = AsyncTweetsResource(self._transport)
         self.search = AsyncSearchResource(self._transport)
         self.lists = AsyncListsResource(self._transport)
+        self.communities = AsyncCommunitiesResource(self._transport)
         self.trending = AsyncTrendingResource(self._transport)
-        self.kol = AsyncKolResource(self._transport)
         self.account = AsyncAccountResource(self._transport)
         self.stream = AsyncStreamResource(self._transport)
 

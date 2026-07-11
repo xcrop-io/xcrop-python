@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any, AsyncIterator, Dict, Iterator, List, Optional
 
 from .._http import AsyncHttpTransport, HttpTransport
-from ..types import ApiResponse, User, Relationship as RelationshipType
+from ..types import ApiResponse, User
 
 # Default safety limit for pagination to prevent infinite loops.
 _MAX_PAGES = 100
@@ -163,6 +163,9 @@ class UsersResource:
         self.verified_followers = _PaginatedEndpoint(
             transport, "/users/{username}/verified-followers",
         )
+        self.followers_ids = _PaginatedEndpoint(
+            transport, "/users/{username}/followers-ids",
+        )
 
     def get(self, username: str) -> ApiResponse:
         """Get a user profile by username."""
@@ -172,9 +175,42 @@ class UsersResource:
         """Batch lookup up to 100 users."""
         return self._transport.post("/users/batch", body={"usernames": usernames})
 
-    def relationship(self, source: str, target: str) -> ApiResponse:
-        """Check follow relationship between two users."""
-        return self._transport.get("/users/relationship", source=source, target=target)
+    def check_follow(self, source: str, target: str) -> ApiResponse:
+        """Check whether ``source`` follows ``target``."""
+        return self._transport.get("/users/check-follow", source=source, target=target)
+
+    def check_qualified_account(
+        self,
+        username: str,
+        *,
+        min_followers: int,
+        min_age_days: int,
+    ) -> ApiResponse:
+        """Eligibility check: does the account meet a minimum follower count
+        and minimum account age (in days)? For giveaway/airdrop gating.
+        """
+        return self._transport.get(
+            f"/users/{username}/check-qualified-account",
+            min_followers=min_followers,
+            min_age_days=min_age_days,
+        )
+
+    def check_qualified_name(
+        self,
+        username: str,
+        *,
+        contains: str,
+        position: str = "anywhere",
+    ) -> ApiResponse:
+        """Eligibility check: does the account display name contain
+        ``contains``? ``position`` is one of "anywhere", "left", "right".
+        For giveaway/airdrop gating.
+        """
+        return self._transport.get(
+            f"/users/{username}/check-qualified-name",
+            contains=contains,
+            position=position,
+        )
 
     def follow(self, username: str) -> Dict[str, Any]:
         """Follow a user (requires connected account)."""
@@ -203,6 +239,9 @@ class AsyncUsersResource:
         self.verified_followers = _AsyncPaginatedEndpoint(
             transport, "/users/{username}/verified-followers",
         )
+        self.followers_ids = _AsyncPaginatedEndpoint(
+            transport, "/users/{username}/followers-ids",
+        )
 
     async def get(self, username: str) -> ApiResponse:
         return await self._transport.get(f"/users/{username}")
@@ -210,8 +249,42 @@ class AsyncUsersResource:
     async def batch(self, usernames: List[str]) -> ApiResponse:
         return await self._transport.post("/users/batch", body={"usernames": usernames})
 
-    async def relationship(self, source: str, target: str) -> ApiResponse:
-        return await self._transport.get("/users/relationship", source=source, target=target)
+    async def check_follow(self, source: str, target: str) -> ApiResponse:
+        """Check whether ``source`` follows ``target``."""
+        return await self._transport.get("/users/check-follow", source=source, target=target)
+
+    async def check_qualified_account(
+        self,
+        username: str,
+        *,
+        min_followers: int,
+        min_age_days: int,
+    ) -> ApiResponse:
+        """Eligibility check: does the account meet a minimum follower count
+        and minimum account age (in days)? For giveaway/airdrop gating.
+        """
+        return await self._transport.get(
+            f"/users/{username}/check-qualified-account",
+            min_followers=min_followers,
+            min_age_days=min_age_days,
+        )
+
+    async def check_qualified_name(
+        self,
+        username: str,
+        *,
+        contains: str,
+        position: str = "anywhere",
+    ) -> ApiResponse:
+        """Eligibility check: does the account display name contain
+        ``contains``? ``position`` is one of "anywhere", "left", "right".
+        For giveaway/airdrop gating.
+        """
+        return await self._transport.get(
+            f"/users/{username}/check-qualified-name",
+            contains=contains,
+            position=position,
+        )
 
     async def follow(self, username: str) -> Dict[str, Any]:
         return await self._transport.post(f"/users/{username}/follow")

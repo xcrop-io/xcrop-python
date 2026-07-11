@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "xcrop"
-version = "1.0.0"
+version = "1.0.1"
 description = "Official Python SDK for the XCROP API — X/Twitter data intelligence platform"
 readme = "README.md"
 license = "MIT"

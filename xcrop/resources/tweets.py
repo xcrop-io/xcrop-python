@@ -1,4 +1,4 @@
-"""Tweets resource — get, conversation, quotes, likers, write operations, interaction checks."""
+"""Tweets resource — get, conversation, quotes, write operations, interaction checks."""
 
 from __future__ import annotations
 
@@ -132,8 +132,6 @@ class TweetsResource:
         self._transport = transport
         self.conversation = _TweetPaginatedEndpoint(transport, "/tweets/{tweetId}/conversation")
         self.quotes = _TweetPaginatedEndpoint(transport, "/tweets/{tweetId}/quotes")
-        self.likers = _TweetPaginatedEndpoint(transport, "/tweets/{tweetId}/likers")
-        self.retweeters = _TweetPaginatedEndpoint(transport, "/tweets/{tweetId}/retweeters")
 
     def get(self, tweet_id: str) -> ApiResponse:
         """Get a single tweet by ID."""
@@ -183,13 +181,37 @@ class TweetsResource:
         """Check if a user retweeted a tweet."""
         return self._transport.get(f"/tweets/{tweet_id}/check-retweet", username=username)
 
-    def check_reply(self, tweet_id: str, username: str) -> Dict[str, Any]:
-        """Check if a user replied to a tweet."""
-        return self._transport.get(f"/tweets/{tweet_id}/check-reply", username=username)
+    def check_reply(
+        self,
+        tweet_id: str,
+        username: str,
+        *,
+        min_tags: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """Check if a user replied to a tweet.
 
-    def check_quote(self, tweet_id: str, username: str) -> Dict[str, Any]:
-        """Check if a user quoted a tweet."""
-        return self._transport.get(f"/tweets/{tweet_id}/check-quote", username=username)
+        Args:
+            min_tags: Optional minimum number of @mentions (0-20) required in the reply.
+        """
+        return self._transport.get(
+            f"/tweets/{tweet_id}/check-reply", username=username, min_tags=min_tags,
+        )
+
+    def check_quote(
+        self,
+        tweet_id: str,
+        username: str,
+        *,
+        min_tags: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """Check if a user quoted a tweet.
+
+        Args:
+            min_tags: Optional minimum number of @mentions (0-20) required in the quote.
+        """
+        return self._transport.get(
+            f"/tweets/{tweet_id}/check-quote", username=username, min_tags=min_tags,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -203,8 +225,6 @@ class AsyncTweetsResource:
         self._transport = transport
         self.conversation = _AsyncTweetPaginatedEndpoint(transport, "/tweets/{tweetId}/conversation")
         self.quotes = _AsyncTweetPaginatedEndpoint(transport, "/tweets/{tweetId}/quotes")
-        self.likers = _AsyncTweetPaginatedEndpoint(transport, "/tweets/{tweetId}/likers")
-        self.retweeters = _AsyncTweetPaginatedEndpoint(transport, "/tweets/{tweetId}/retweeters")
 
     async def get(self, tweet_id: str) -> ApiResponse:
         return await self._transport.get(f"/tweets/{tweet_id}")
@@ -239,8 +259,34 @@ class AsyncTweetsResource:
     async def check_retweet(self, tweet_id: str, username: str) -> Dict[str, Any]:
         return await self._transport.get(f"/tweets/{tweet_id}/check-retweet", username=username)
 
-    async def check_reply(self, tweet_id: str, username: str) -> Dict[str, Any]:
-        return await self._transport.get(f"/tweets/{tweet_id}/check-reply", username=username)
+    async def check_reply(
+        self,
+        tweet_id: str,
+        username: str,
+        *,
+        min_tags: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """Check if a user replied to a tweet.
 
-    async def check_quote(self, tweet_id: str, username: str) -> Dict[str, Any]:
-        return await self._transport.get(f"/tweets/{tweet_id}/check-quote", username=username)
+        Args:
+            min_tags: Optional minimum number of @mentions (0-20) required in the reply.
+        """
+        return await self._transport.get(
+            f"/tweets/{tweet_id}/check-reply", username=username, min_tags=min_tags,
+        )
+
+    async def check_quote(
+        self,
+        tweet_id: str,
+        username: str,
+        *,
+        min_tags: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """Check if a user quoted a tweet.
+
+        Args:
+            min_tags: Optional minimum number of @mentions (0-20) required in the quote.
+        """
+        return await self._transport.get(
+            f"/tweets/{tweet_id}/check-quote", username=username, min_tags=min_tags,
+        )

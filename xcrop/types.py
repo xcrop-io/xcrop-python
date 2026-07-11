@@ -61,12 +61,31 @@ class User(TypedDict, total=False):
 
 
 class Relationship(TypedDict, total=False):
+    """Result of ``users.check_follow(source, target)``."""
+
     source: str
     target: str
-    following: bool
-    followed_by: bool
-    blocking: bool
-    muting: bool
+    source_follows_target: bool
+    target_follows_source: bool
+
+
+class QualifiedAccountCheck(TypedDict, total=False):
+    """Result of ``users.check_qualified_account()``."""
+
+    username: str
+    qualified: bool
+    followers_count: int
+    account_age_days: int
+
+
+class QualifiedNameCheck(TypedDict, total=False):
+    """Result of ``users.check_qualified_name()``."""
+
+    username: str
+    qualified: bool
+    name: str
+    contains: str
+    position: str
 
 
 # ---------------------------------------------------------------------------
@@ -141,6 +160,24 @@ class TrendingTopic(TypedDict, total=False):
     tweet_count: int
     domain: str
     context: str
+
+
+# ---------------------------------------------------------------------------
+# Communities (beta — endpoints may return 503)
+# ---------------------------------------------------------------------------
+
+class Community(TypedDict, total=False):
+    id: str
+    name: str
+    description: str
+    member_count: int
+    is_nsfw: bool
+    created_at: str
+
+
+class CommunityMember(TypedDict, total=False):
+    user: User
+    role: str
 
 
 # ---------------------------------------------------------------------------

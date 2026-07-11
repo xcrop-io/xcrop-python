@@ -4,8 +4,8 @@ from .users import UsersResource, AsyncUsersResource
 from .tweets import TweetsResource, AsyncTweetsResource
 from .search import SearchResource, AsyncSearchResource
 from .lists import ListsResource, AsyncListsResource
+from .communities import CommunitiesResource, AsyncCommunitiesResource
 from .trending import TrendingResource, AsyncTrendingResource
-from .kol import KolResource, AsyncKolResource
 from .account import AccountResource, AsyncAccountResource
 from .stream import StreamResource, AsyncStreamResource
 
@@ -18,10 +18,10 @@ __all__ = [
     "AsyncSearchResource",
     "ListsResource",
     "AsyncListsResource",
+    "CommunitiesResource",
+    "AsyncCommunitiesResource",
     "TrendingResource",
     "AsyncTrendingResource",
-    "KolResource",
-    "AsyncKolResource",
     "AccountResource",
     "AsyncAccountResource",
     "StreamResource",
