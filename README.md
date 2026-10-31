@@ -1,6 +1,6 @@
 # XCROP Python SDK
 
-Official Python client for the [XCROP API](https://xcrop.io) — X/Twitter data intelligence platform. 39 endpoints covering profile lookup, timelines, search, lists, communities, account monitoring, write operations, and interaction/eligibility checks.
+Official Python client for the [XCROP API](https://xcrop.io), the X/Twitter data intelligence platform. 42 endpoints covering profile lookup, timelines, search, lists, communities, account monitoring, write operations, and interaction/eligibility checks.
 
 ## Installation
 
@@ -27,12 +27,12 @@ for tweet in tweets["data"]:
 
 ## Features
 
-- **Sync & Async** — `XCropClient` (sync) and `AsyncXCropClient` (async) with identical APIs
-- **Auto-retry** — Exponential backoff on 429 (rate limit) and 5xx errors, up to 3 retries
-- **Auto-pagination** — `.paginate()` iterators handle cursor-based pagination automatically
-- **SSE Streaming** — Real-time search streaming and event streams
-- **Type hints** — Full typing for IDE autocomplete
-- **Custom exceptions** — `AuthError`, `RateLimitError`, `NotFoundError`, `ServerError`
+- **Sync & Async**: `XCropClient` (sync) and `AsyncXCropClient` (async) with identical APIs
+- **Auto-retry**: Exponential backoff on 429 (rate limit) and 5xx errors, up to 3 retries
+- **Auto-pagination**: `.paginate()` iterators handle cursor-based pagination automatically
+- **SSE Streaming**: Real-time search streaming and event streams
+- **Type hints**: Full typing for IDE autocomplete
+- **Custom exceptions**: `AuthError`, `RateLimitError`, `NotFoundError`, `ServerError`
 
 ## Usage
 
@@ -61,7 +61,7 @@ for tweet in client.users.tweets.paginate("elonmusk", count=200):
 # Batch lookup (up to 100)
 users = client.users.batch(["elonmusk", "jack", "vaboronin"])
 
-# Follow relationship check — does `source` follow `target`?
+# Follow relationship check: does `source` follow `target`?
 rel = client.users.check_follow(source="jack", target="elonmusk")
 print(rel["data"]["source_follows_target"])
 

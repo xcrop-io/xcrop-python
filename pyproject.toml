@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "xcrop"
 version = "1.0.1"
-description = "Official Python SDK for the XCROP API — X/Twitter data intelligence platform"
+description = "Official Python SDK for the XCROP API, the X/Twitter data intelligence platform"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.8"
@@ -35,8 +35,8 @@ dependencies = [
 [project.urls]
 Homepage = "https://xcrop.io"
 Documentation = "https://xcrop.io/docs"
-Repository = "https://github.com/xcrop/xcrop-python"
-Issues = "https://github.com/xcrop/xcrop-python/issues"
+Repository = "https://github.com/xcrop-io/xcrop-python"
+Issues = "https://github.com/xcrop-io/xcrop-python/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["xcrop"]
