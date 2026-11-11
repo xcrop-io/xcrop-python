@@ -1,6 +1,6 @@
 # XCROP Python SDK
 
-Official Python client for the [XCROP API](https://xcrop.io), the X/Twitter data intelligence platform. 42 endpoints covering profile lookup, timelines, search, lists, communities, account monitoring, write operations, and interaction/eligibility checks.
+Official Python client for the [XCROP API](https://xcrop.io), the X/Twitter data intelligence platform. 43 endpoints covering profile lookup, timelines, search, lists, communities, account monitoring, write operations, and interaction/eligibility checks.
 
 ## Installation
 
