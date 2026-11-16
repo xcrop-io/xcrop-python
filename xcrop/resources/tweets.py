@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
-from typing import Any, AsyncIterator, Dict, Iterator, List, Optional
+from typing import Any, AsyncIterator, Dict, FrozenSet, Iterator, List, Optional
 
 from .._http import AsyncHttpTransport, HttpTransport
 from ..types import ApiResponse
+from ._params import TimeValue, encode_query
 
 # Default safety limit for pagination to prevent infinite loops.
 _MAX_PAGES = 100
+
+_NO_OPTIONS: FrozenSet[str] = frozenset()
+_WINDOW: FrozenSet[str] = frozenset({"since", "until"})
+_CONVERSATION: FrozenSet[str] = frozenset({"sort", "since", "until"})
 
 
 # ---------------------------------------------------------------------------
@@ -16,9 +21,15 @@ _MAX_PAGES = 100
 # ---------------------------------------------------------------------------
 
 class _TweetPaginatedEndpoint:
-    def __init__(self, transport: HttpTransport, path_template: str) -> None:
+    def __init__(
+        self,
+        transport: HttpTransport,
+        path_template: str,
+        options: FrozenSet[str] = _NO_OPTIONS,
+    ) -> None:
         self._transport = transport
         self._path_template = path_template
+        self._options = options
 
     def __call__(
         self,
@@ -26,9 +37,29 @@ class _TweetPaginatedEndpoint:
         *,
         count: int = 20,
         cursor: Optional[str] = None,
+        sort: Optional[str] = None,
+        since: Optional[TimeValue] = None,
+        until: Optional[TimeValue] = None,
     ) -> ApiResponse:
+        """Fetch a single page.
+
+        Args:
+            tweet_id: The tweet ID.
+            count: Number of items to request per page.
+            cursor: Pagination cursor from a previous response.
+            sort: ``conversation`` only: "latest" (default), "relevance" or "likes".
+                "popular" and "engagement" are aliases of "relevance".
+            since: Only items at or after this time (unix seconds or ISO date).
+                Supported on ``conversation`` and ``quotes``.
+            until: Only items before this time (unix seconds or ISO date).
+                Supported on ``conversation`` and ``quotes``.
+        """
         path = self._path_template.format(tweetId=tweet_id)
-        return self._transport.get(path, count=count, cursor=cursor)
+        query = encode_query(
+            self._path_template, self._options,
+            {"sort": sort, "since": since, "until": until},
+        )
+        return self._transport.get(path, count=count, cursor=cursor, **query)
 
     def paginate(
         self,
@@ -36,6 +67,9 @@ class _TweetPaginatedEndpoint:
         *,
         count: int = 20,
         max_pages: int = _MAX_PAGES,
+        sort: Optional[str] = None,
+        since: Optional[TimeValue] = None,
+        until: Optional[TimeValue] = None,
     ) -> Iterator[Dict[str, Any]]:
         """Auto-paginate, yielding individual items.
 
@@ -43,13 +77,16 @@ class _TweetPaginatedEndpoint:
             tweet_id: The tweet ID.
             count: Total number of items to yield.
             max_pages: Safety limit on pages fetched (default 100).
+            sort, since, until: See ``__call__``.
         """
         cursor: Optional[str] = None
         remaining = count
         pages_fetched = 0
         while pages_fetched < max_pages:
             page_size = min(remaining, 100) if remaining > 0 else 20
-            resp = self(tweet_id, count=page_size, cursor=cursor)
+            resp = self(
+                tweet_id, count=page_size, cursor=cursor, sort=sort, since=since, until=until,
+            )
             pages_fetched += 1
             data = resp.get("data")
             if data is None:
@@ -72,9 +109,15 @@ class _TweetPaginatedEndpoint:
 
 
 class _AsyncTweetPaginatedEndpoint:
-    def __init__(self, transport: AsyncHttpTransport, path_template: str) -> None:
+    def __init__(
+        self,
+        transport: AsyncHttpTransport,
+        path_template: str,
+        options: FrozenSet[str] = _NO_OPTIONS,
+    ) -> None:
         self._transport = transport
         self._path_template = path_template
+        self._options = options
 
     async def __call__(
         self,
@@ -82,9 +125,29 @@ class _AsyncTweetPaginatedEndpoint:
         *,
         count: int = 20,
         cursor: Optional[str] = None,
+        sort: Optional[str] = None,
+        since: Optional[TimeValue] = None,
+        until: Optional[TimeValue] = None,
     ) -> ApiResponse:
+        """Fetch a single page.
+
+        Args:
+            tweet_id: The tweet ID.
+            count: Number of items to request per page.
+            cursor: Pagination cursor from a previous response.
+            sort: ``conversation`` only: "latest" (default), "relevance" or "likes".
+                "popular" and "engagement" are aliases of "relevance".
+            since: Only items at or after this time (unix seconds or ISO date).
+                Supported on ``conversation`` and ``quotes``.
+            until: Only items before this time (unix seconds or ISO date).
+                Supported on ``conversation`` and ``quotes``.
+        """
         path = self._path_template.format(tweetId=tweet_id)
-        return await self._transport.get(path, count=count, cursor=cursor)
+        query = encode_query(
+            self._path_template, self._options,
+            {"sort": sort, "since": since, "until": until},
+        )
+        return await self._transport.get(path, count=count, cursor=cursor, **query)
 
     async def paginate(
         self,
@@ -92,6 +155,9 @@ class _AsyncTweetPaginatedEndpoint:
         *,
         count: int = 20,
         max_pages: int = _MAX_PAGES,
+        sort: Optional[str] = None,
+        since: Optional[TimeValue] = None,
+        until: Optional[TimeValue] = None,
     ) -> AsyncIterator[Dict[str, Any]]:
         """Auto-paginate, yielding individual items."""
         cursor: Optional[str] = None
@@ -99,7 +165,9 @@ class _AsyncTweetPaginatedEndpoint:
         pages_fetched = 0
         while pages_fetched < max_pages:
             page_size = min(remaining, 100) if remaining > 0 else 20
-            resp = await self(tweet_id, count=page_size, cursor=cursor)
+            resp = await self(
+                tweet_id, count=page_size, cursor=cursor, sort=sort, since=since, until=until,
+            )
             pages_fetched += 1
             data = resp.get("data")
             if data is None:
@@ -130,8 +198,11 @@ class TweetsResource:
 
     def __init__(self, transport: HttpTransport) -> None:
         self._transport = transport
-        self.conversation = _TweetPaginatedEndpoint(transport, "/tweets/{tweetId}/conversation")
-        self.quotes = _TweetPaginatedEndpoint(transport, "/tweets/{tweetId}/quotes")
+        self.conversation = _TweetPaginatedEndpoint(
+            transport, "/tweets/{tweetId}/conversation", _CONVERSATION,
+        )
+        self.quotes = _TweetPaginatedEndpoint(transport, "/tweets/{tweetId}/quotes", _WINDOW)
+        self.retweeters = _TweetPaginatedEndpoint(transport, "/tweets/{tweetId}/retweeters")
 
     def get(self, tweet_id: str) -> ApiResponse:
         """Get a single tweet by ID."""
@@ -223,8 +294,15 @@ class AsyncTweetsResource:
 
     def __init__(self, transport: AsyncHttpTransport) -> None:
         self._transport = transport
-        self.conversation = _AsyncTweetPaginatedEndpoint(transport, "/tweets/{tweetId}/conversation")
-        self.quotes = _AsyncTweetPaginatedEndpoint(transport, "/tweets/{tweetId}/quotes")
+        self.conversation = _AsyncTweetPaginatedEndpoint(
+            transport, "/tweets/{tweetId}/conversation", _CONVERSATION,
+        )
+        self.quotes = _AsyncTweetPaginatedEndpoint(
+            transport, "/tweets/{tweetId}/quotes", _WINDOW,
+        )
+        self.retweeters = _AsyncTweetPaginatedEndpoint(
+            transport, "/tweets/{tweetId}/retweeters",
+        )
 
     async def get(self, tweet_id: str) -> ApiResponse:
         return await self._transport.get(f"/tweets/{tweet_id}")

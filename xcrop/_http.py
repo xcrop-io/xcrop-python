@@ -23,6 +23,8 @@ from .errors import (
     RateLimitError,
     ServerError,
     StreamError,
+    UserSuspendedError,
+    UserUnavailableError,
     XCropError,
 )
 
@@ -47,23 +49,35 @@ def _raise_for_status(response: httpx.Response) -> None:
         body = response.json()
         message = body.get("error", response.text)
         code = body.get("code", "")
+        reason = body.get("reason")
     except Exception:
         message = response.text or f"HTTP {status}"
         code = ""
+        reason = None
 
     if status == 401 or status == 403:
-        raise AuthError(message, status_code=status, error_code=code, response=response)
+        raise AuthError(
+            message, status_code=status, error_code=code, response=response, reason=reason,
+        )
     if status == 404:
-        raise NotFoundError(message, error_code=code, response=response)
+        if code == "USER_SUSPENDED":
+            raise UserSuspendedError(message, error_code=code, response=response, reason=reason)
+        if code == "USER_UNAVAILABLE":
+            raise UserUnavailableError(message, error_code=code, response=response, reason=reason)
+        raise NotFoundError(message, error_code=code, response=response, reason=reason)
     if status == 429:
         retry_after = _parse_retry_after(response)
         raise RateLimitError(
-            message, retry_after=retry_after, error_code=code, response=response,
+            message, retry_after=retry_after, error_code=code, response=response, reason=reason,
         )
     if 500 <= status < 600:
-        raise ServerError(message, status_code=status, error_code=code, response=response)
+        raise ServerError(
+            message, status_code=status, error_code=code, response=response, reason=reason,
+        )
 
-    raise XCropError(message, status_code=status, error_code=code, response=response)
+    raise XCropError(
+        message, status_code=status, error_code=code, response=response, reason=reason,
+    )
 
 
 def _parse_retry_after(response: httpx.Response) -> Optional[float]:

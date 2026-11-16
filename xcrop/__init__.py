@@ -19,10 +19,13 @@ Async::
 from .client import AsyncXCropClient, XCropClient
 from .errors import (
     AuthError,
+    ErrorCode,
     NotFoundError,
     RateLimitError,
     ServerError,
     StreamError,
+    UserSuspendedError,
+    UserUnavailableError,
     XCropError,
 )
 
@@ -37,5 +40,8 @@ __all__ = [
     "NotFoundError",
     "ServerError",
     "StreamError",
+    "UserSuspendedError",
+    "UserUnavailableError",
+    "ErrorCode",
     "__version__",
 ]

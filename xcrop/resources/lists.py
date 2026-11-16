@@ -2,19 +2,29 @@
 
 from __future__ import annotations
 
-from typing import Any, AsyncIterator, Dict, Iterator, Optional
+from typing import Any, AsyncIterator, Dict, FrozenSet, Iterator, Optional
 
 from .._http import AsyncHttpTransport, HttpTransport
 from ..types import ApiResponse
+from ._params import TimeValue, encode_query
 
 # Default safety limit for pagination to prevent infinite loops.
 _MAX_PAGES = 100
 
+_NO_OPTIONS: FrozenSet[str] = frozenset()
+_WINDOW: FrozenSet[str] = frozenset({"since", "until"})
+
 
 class _ListPaginatedEndpoint:
-    def __init__(self, transport: HttpTransport, path_template: str) -> None:
+    def __init__(
+        self,
+        transport: HttpTransport,
+        path_template: str,
+        options: FrozenSet[str] = _NO_OPTIONS,
+    ) -> None:
         self._transport = transport
         self._path_template = path_template
+        self._options = options
 
     def __call__(
         self,
@@ -22,9 +32,20 @@ class _ListPaginatedEndpoint:
         *,
         count: int = 20,
         cursor: Optional[str] = None,
+        since: Optional[TimeValue] = None,
+        until: Optional[TimeValue] = None,
     ) -> ApiResponse:
+        """Fetch a single page.
+
+        Args:
+            since: ``tweets`` only: items at or after this time (unix seconds or ISO date).
+            until: ``tweets`` only: items before this time (unix seconds or ISO date).
+        """
         path = self._path_template.format(listId=list_id)
-        return self._transport.get(path, count=count, cursor=cursor)
+        query = encode_query(
+            self._path_template, self._options, {"since": since, "until": until},
+        )
+        return self._transport.get(path, count=count, cursor=cursor, **query)
 
     def paginate(
         self,
@@ -32,6 +53,8 @@ class _ListPaginatedEndpoint:
         *,
         count: int = 20,
         max_pages: int = _MAX_PAGES,
+        since: Optional[TimeValue] = None,
+        until: Optional[TimeValue] = None,
     ) -> Iterator[Dict[str, Any]]:
         """Auto-paginate, yielding individual items.
 
@@ -39,13 +62,14 @@ class _ListPaginatedEndpoint:
             list_id: The list ID.
             count: Total number of items to yield.
             max_pages: Safety limit on pages fetched (default 100).
+            since, until: ``tweets`` only, see ``__call__``.
         """
         cursor: Optional[str] = None
         remaining = count
         pages_fetched = 0
         while pages_fetched < max_pages:
             page_size = min(remaining, 100) if remaining > 0 else 20
-            resp = self(list_id, count=page_size, cursor=cursor)
+            resp = self(list_id, count=page_size, cursor=cursor, since=since, until=until)
             pages_fetched += 1
             data = resp.get("data")
             if data is None:
@@ -68,9 +92,15 @@ class _ListPaginatedEndpoint:
 
 
 class _AsyncListPaginatedEndpoint:
-    def __init__(self, transport: AsyncHttpTransport, path_template: str) -> None:
+    def __init__(
+        self,
+        transport: AsyncHttpTransport,
+        path_template: str,
+        options: FrozenSet[str] = _NO_OPTIONS,
+    ) -> None:
         self._transport = transport
         self._path_template = path_template
+        self._options = options
 
     async def __call__(
         self,
@@ -78,9 +108,14 @@ class _AsyncListPaginatedEndpoint:
         *,
         count: int = 20,
         cursor: Optional[str] = None,
+        since: Optional[TimeValue] = None,
+        until: Optional[TimeValue] = None,
     ) -> ApiResponse:
         path = self._path_template.format(listId=list_id)
-        return await self._transport.get(path, count=count, cursor=cursor)
+        query = encode_query(
+            self._path_template, self._options, {"since": since, "until": until},
+        )
+        return await self._transport.get(path, count=count, cursor=cursor, **query)
 
     async def paginate(
         self,
@@ -88,6 +123,8 @@ class _AsyncListPaginatedEndpoint:
         *,
         count: int = 20,
         max_pages: int = _MAX_PAGES,
+        since: Optional[TimeValue] = None,
+        until: Optional[TimeValue] = None,
     ) -> AsyncIterator[Dict[str, Any]]:
         """Auto-paginate, yielding individual items."""
         cursor: Optional[str] = None
@@ -95,7 +132,7 @@ class _AsyncListPaginatedEndpoint:
         pages_fetched = 0
         while pages_fetched < max_pages:
             page_size = min(remaining, 100) if remaining > 0 else 20
-            resp = await self(list_id, count=page_size, cursor=cursor)
+            resp = await self(list_id, count=page_size, cursor=cursor, since=since, until=until)
             pages_fetched += 1
             data = resp.get("data")
             if data is None:
@@ -121,7 +158,7 @@ class ListsResource:
     """Sync lists resource."""
 
     def __init__(self, transport: HttpTransport) -> None:
-        self.tweets = _ListPaginatedEndpoint(transport, "/lists/{listId}/tweets")
+        self.tweets = _ListPaginatedEndpoint(transport, "/lists/{listId}/tweets", _WINDOW)
         self.members = _ListPaginatedEndpoint(transport, "/lists/{listId}/members")
         self.subscribers = _ListPaginatedEndpoint(transport, "/lists/{listId}/subscribers")
 
@@ -130,6 +167,8 @@ class AsyncListsResource:
     """Async lists resource."""
 
     def __init__(self, transport: AsyncHttpTransport) -> None:
-        self.tweets = _AsyncListPaginatedEndpoint(transport, "/lists/{listId}/tweets")
+        self.tweets = _AsyncListPaginatedEndpoint(
+            transport, "/lists/{listId}/tweets", _WINDOW,
+        )
         self.members = _AsyncListPaginatedEndpoint(transport, "/lists/{listId}/members")
         self.subscribers = _AsyncListPaginatedEndpoint(transport, "/lists/{listId}/subscribers")

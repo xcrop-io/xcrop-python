@@ -22,7 +22,7 @@ from xcrop._http import _parse_sse_data, HttpTransport
 # ---------------------------------------------------------------------------
 
 def test_version_exists():
-    assert __version__ == "1.0.1"
+    assert __version__ == "1.1.0"
 
 
 # ---------------------------------------------------------------------------
@@ -266,3 +266,173 @@ def test_py_typed_exists():
     import pathlib
     marker = pathlib.Path(xcrop.__file__).parent / "py.typed"
     assert marker.exists(), "py.typed marker file should exist in xcrop package"
+
+
+# ---------------------------------------------------------------------------
+# 1.1.0: new endpoints and params
+# ---------------------------------------------------------------------------
+
+def test_tweets_retweeters_path():
+    transport = MagicMock()
+    transport.get.return_value = {"data": []}
+    from xcrop.resources.tweets import TweetsResource
+    TweetsResource(transport).retweeters("123", count=50, cursor="c")
+    transport.get.assert_called_once_with("/tweets/123/retweeters", count=50, cursor="c")
+
+
+def test_tweets_conversation_sort_and_window():
+    transport = MagicMock()
+    from xcrop.resources.tweets import TweetsResource
+    TweetsResource(transport).conversation("1", sort="likes", since="2026-11-01", until=1763251200)
+    transport.get.assert_called_once_with(
+        "/tweets/1/conversation", count=20, cursor=None,
+        sort="likes", since="2026-11-01", until=1763251200,
+    )
+
+
+def test_tweets_quotes_rejects_sort():
+    transport = MagicMock()
+    from xcrop.resources.tweets import TweetsResource
+    with pytest.raises(TypeError):
+        TweetsResource(transport).quotes("1", sort="likes")
+
+
+def test_users_following_ids():
+    transport = MagicMock()
+    from xcrop.resources.users import UsersResource
+    UsersResource(transport).following_ids("jack", count=5000)
+    transport.get.assert_called_once_with("/users/jack/following-ids", count=5000, cursor=None)
+
+
+def test_users_user_id_forms():
+    transport = MagicMock()
+    from xcrop.resources.users import UsersResource
+    res = UsersResource(transport)
+    res.tweets(user_id=44196397)
+    transport.get.assert_called_with(
+        "/users/id:44196397/tweets", count=20, cursor=None, user_id="44196397",
+    )
+    res.get(user_id="44196397")
+    transport.get.assert_called_with("/users/id:44196397", user_id="44196397")
+    res.get("id:44196397")
+    transport.get.assert_called_with("/users/id:44196397")
+    with pytest.raises(ValueError):
+        res.tweets()
+
+
+def test_users_include_unavailable_and_mentions_window():
+    transport = MagicMock()
+    from xcrop.resources.users import UsersResource
+    res = UsersResource(transport)
+    res.followers("nasa", include_unavailable=True)
+    transport.get.assert_called_with(
+        "/users/nasa/followers", count=20, cursor=None, include_unavailable="true",
+    )
+    res.mentions("nasa", since="2026-11-01")
+    transport.get.assert_called_with(
+        "/users/nasa/mentions", count=20, cursor=None, since="2026-11-01",
+    )
+    with pytest.raises(TypeError):
+        res.tweets("nasa", include_unavailable=True)
+
+
+def test_users_batch_ids_as_strings():
+    transport = MagicMock()
+    from xcrop.resources.users import UsersResource
+    res = UsersResource(transport)
+    res.batch(ids=[44196397, "1893456789012345678"])
+    transport.post.assert_called_with(
+        "/users/batch", body={"ids": ["44196397", "1893456789012345678"]},
+    )
+    res.batch(["jack"])
+    transport.post.assert_called_with("/users/batch", body={"usernames": ["jack"]})
+    with pytest.raises(ValueError):
+        res.batch(["jack"], ids=["1"])
+    with pytest.raises(ValueError):
+        res.batch()
+
+
+def test_lists_tweets_window():
+    transport = MagicMock()
+    from xcrop.resources.lists import ListsResource
+    res = ListsResource(transport)
+    res.tweets("9", since=1763251200)
+    transport.get.assert_called_with("/lists/9/tweets", count=20, cursor=None, since=1763251200)
+    with pytest.raises(TypeError):
+        res.members("9", since=1)
+
+
+def test_communities_moderators_and_members_sort():
+    transport = MagicMock()
+    from xcrop.resources.communities import CommunitiesResource
+    res = CommunitiesResource(transport)
+    res.moderators("1493446837214187523", count=10, sort="name")
+    transport.get.assert_called_with(
+        "/communities/1493446837214187523/moderators", count=10, sort="name", cursor=None,
+    )
+
+
+def test_account_credits():
+    transport = MagicMock()
+    transport.get.return_value = {"data": {"total_remaining": 10}}
+    from xcrop.resources.account import AccountResource
+    assert AccountResource(transport).credits() == {"data": {"total_remaining": 10}}
+    transport.get.assert_called_once_with("/account/credits")
+
+
+def test_client_exposes_new_resources():
+    client = XCropClient(api_key="test")
+    assert client.tweets.retweeters is not None
+    assert client.users.following_ids is not None
+    assert client.communities.moderators is not None
+    assert client.account.credits is not None
+    client.close()
+
+
+# ---------------------------------------------------------------------------
+# 1.1.0: error codes
+# ---------------------------------------------------------------------------
+
+def _fake_response(status, body):
+    import httpx
+    return httpx.Response(status, json=body, request=httpx.Request("GET", "https://x/y"))
+
+
+def test_error_code_suspended():
+    from xcrop._http import _raise_for_status
+    from xcrop.errors import UserSuspendedError
+    resp = _fake_response(404, {"error": "User is suspended", "code": "USER_SUSPENDED", "reason": "suspended"})
+    with pytest.raises(UserSuspendedError) as ei:
+        _raise_for_status(resp)
+    assert isinstance(ei.value, NotFoundError)
+    assert ei.value.code == "USER_SUSPENDED"
+    assert ei.value.reason == "suspended"
+    assert ei.value.status_code == 404
+
+
+def test_error_code_unavailable_reason():
+    from xcrop._http import _raise_for_status
+    from xcrop.errors import UserUnavailableError
+    resp = _fake_response(404, {"error": "x", "code": "USER_UNAVAILABLE", "reason": "deactivated"})
+    with pytest.raises(UserUnavailableError) as ei:
+        _raise_for_status(resp)
+    assert ei.value.reason == "deactivated"
+
+
+def test_error_code_plain_not_found_and_bad_request():
+    from xcrop._http import _raise_for_status
+    with pytest.raises(NotFoundError) as ei:
+        _raise_for_status(_fake_response(404, {"error": "User not found", "code": "NOT_FOUND", "reason": "not_found"}))
+    assert type(ei.value) is NotFoundError
+    assert ei.value.code == "NOT_FOUND"
+    with pytest.raises(XCropError) as ei2:
+        _raise_for_status(_fake_response(400, {"error": "bad", "code": "BAD_TIME_WINDOW"}))
+    assert ei2.value.code == "BAD_TIME_WINDOW"
+    with pytest.raises(ServerError) as ei3:
+        _raise_for_status(_fake_response(500, {"error": "boom", "code": "INTERNAL_ERROR"}))
+    assert ei3.value.code == "INTERNAL_ERROR"
+
+
+def test_error_code_constants_exported():
+    assert xcrop.ErrorCode.BAD_COMMUNITY_ID == "BAD_COMMUNITY_ID"
+    assert xcrop.UserSuspendedError is not None

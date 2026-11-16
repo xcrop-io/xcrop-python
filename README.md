@@ -1,6 +1,6 @@
 # XCROP Python SDK
 
-Official Python client for the [XCROP API](https://xcrop.io), the X/Twitter data intelligence platform. 44 endpoints covering profile lookup, timelines, search, lists, communities, account monitoring, write operations, and interaction/eligibility checks.
+Official Python client for the [XCROP API](https://xcrop.io), the X/Twitter data intelligence platform. 47 endpoints covering profile lookup, timelines, search, lists, communities, account monitoring, write operations, and interaction/eligibility checks.
 
 ## Installation
 
@@ -32,7 +32,7 @@ for tweet in tweets["data"]:
 - **Auto-pagination**: `.paginate()` iterators handle cursor-based pagination automatically
 - **SSE Streaming**: Real-time search streaming and event streams
 - **Type hints**: Full typing for IDE autocomplete
-- **Custom exceptions**: `AuthError`, `RateLimitError`, `NotFoundError`, `ServerError`
+- **Custom exceptions**: `AuthError`, `RateLimitError`, `NotFoundError` (with `UserSuspendedError` / `UserUnavailableError`), `ServerError`; each exposes `.code` and `.reason`
 
 ## Usage
 
@@ -51,15 +51,29 @@ replies = client.users.replies("elonmusk")
 media = client.users.media("elonmusk")
 verified = client.users.verified_followers("elonmusk")
 
-# Bulk follower IDs (up to 5,000 per call, no profile metadata)
+# Bulk follower / following IDs (up to 5,000 per call, no profile metadata)
 ids = client.users.followers_ids("elonmusk", count=5000)
+following = client.users.following_ids("elonmusk", count=5000)
+
+# Any user route takes a numeric id: "id:<digits>" or user_id=
+user = client.users.get("id:44196397")
+user = client.users.get(user_id=44196397)
+tweets = client.users.tweets(user_id=44196397, count=20)
+
+# Time window on mentions (unix seconds or ISO date)
+mentions = client.users.mentions("elonmusk", since="2026-11-01", until="2026-11-15")
+
+# Also return suspended/deactivated accounts as { "id", "unavailable": True, ... }
+# rows (not billed). Works on followers, following and verified_followers.
+followers = client.users.followers("nasa", count=100, include_unavailable=True)
 
 # Auto-paginate (fetches all pages, yields individual items)
 for tweet in client.users.tweets.paginate("elonmusk", count=200):
     print(tweet["text"])
 
-# Batch lookup (up to 100)
+# Batch lookup (up to 100), by username or by numeric id
 users = client.users.batch(["elonmusk", "jack", "vaboronin"])
+users = client.users.batch(ids=["44196397", "12"])  # ids are sent as strings
 
 # Follow relationship check: does `source` follow `target`?
 rel = client.users.check_follow(source="jack", target="elonmusk")
@@ -84,12 +98,18 @@ client.users.unfollow("jack")
 # Single tweet
 tweet = client.tweets.get("1234567890")
 
-# Conversation thread
-conv = client.tweets.conversation("1234567890", count=50)
+# Conversation thread. sort: "latest" (default) | "relevance" | "likes"
+conv = client.tweets.conversation("1234567890", count=50, sort="likes")
+print(conv["meta"]["sort"], conv["meta"]["thread_context"])  # tweets above a mid-thread tweet
 
-# Quotes (with pagination)
-for quote in client.tweets.quotes.paginate("1234567890", count=100):
+# Quotes (with pagination), optionally inside a time window
+for quote in client.tweets.quotes.paginate("1234567890", count=100, since="2026-11-01"):
     print(quote["text"])
+
+# Who reposted a tweet (user objects, 1 credit per user)
+reposters = client.tweets.retweeters("1234567890", count=100)
+for user in client.tweets.retweeters.paginate("1234567890", count=500):
+    print(user["username"])
 
 # Batch lookup
 tweets = client.tweets.batch(["123", "456", "789"])
@@ -152,6 +172,9 @@ subscribers = client.lists.subscribers("1234567890")
 # Paginate
 for tweet in client.lists.tweets.paginate("1234567890", count=200):
     print(tweet["text"])
+
+# Time window on list tweets
+recent = client.lists.tweets("1234567890", since="2026-11-01")
 ```
 
 ### Trending
@@ -159,27 +182,24 @@ for tweet in client.lists.tweets.paginate("1234567890", count=200):
 ```python
 trending = client.trending.get()
 for topic in trending["data"]:
-    print(topic["name"], topic.get("tweet_count"))
+    print(topic["rank"], topic["name"])  # rank is 1-based; volume is always None
 ```
 
-### Communities (beta)
-
-> Communities endpoints are still rolling out and may return a `503`
-> (`ServerError`) while the underlying data source stabilizes.
+### Communities
 
 ```python
-from xcrop import ServerError
+cid = "1708766018985501165"
+community = client.communities.get(cid)
+tweets = client.communities.tweets(cid, count=50)      # no sort option
+members = client.communities.members(cid, count=50, sort="name")  # "default" | "name"
+mods = client.communities.moderators(cid, count=50)    # rows carry community_role
 
-try:
-    community = client.communities.get("1708766018985501165")
-    tweets = client.communities.tweets("1708766018985501165", count=50)
-    members = client.communities.members("1708766018985501165", count=50)
-
-    for tweet in client.communities.tweets.paginate("1708766018985501165", count=200):
-        print(tweet["text"])
-except ServerError:
-    print("Communities data source temporarily unavailable")
+for tweet in client.communities.tweets.paginate(cid, count=200):
+    print(tweet["text"])
 ```
+
+Members, moderators and tweets may return more rows than `count` (X serves whole
+pages), so treat `count` as a minimum there.
 
 ### Account Management
 
@@ -196,6 +216,10 @@ print(status["data"]["connected"])
 
 # Disconnect
 client.account.disconnect()
+
+# Credit balance (free)
+credits = client.account.credits()
+print(credits["data"]["total_remaining"], credits["data"]["period_end"])
 ```
 
 ### Real-time Stream
@@ -231,12 +255,19 @@ asyncio.run(main())
 ## Error Handling
 
 ```python
-from xcrop import XCropClient, AuthError, RateLimitError, NotFoundError, XCropError
+from xcrop import (
+    XCropClient, AuthError, RateLimitError, NotFoundError, XCropError,
+    UserSuspendedError, UserUnavailableError,
+)
 
 client = XCropClient(api_key="xc_live_...")
 
 try:
     user = client.users.get("nonexistent_user_12345")
+except UserSuspendedError:
+    print("Account is suspended, do not retry")
+except UserUnavailableError as e:
+    print(f"Account unavailable: {e.reason}")  # e.g. "deactivated"
 except NotFoundError:
     print("User not found")
 except AuthError:
@@ -244,8 +275,15 @@ except AuthError:
 except RateLimitError as e:
     print(f"Rate limited. Retry after: {e.retry_after}s")
 except XCropError as e:
-    print(f"API error: {e.message} (HTTP {e.status_code})")
+    print(f"API error: {e.message} (HTTP {e.status_code}, code {e.code})")
 ```
+
+Every error exposes `.code` (alias of `.error_code`) and, on some 404s, `.reason`.
+`xcrop.ErrorCode` holds the known values: `NOT_FOUND`, `USER_SUSPENDED`,
+`USER_UNAVAILABLE`, `BAD_COMMUNITY_ID`, `BAD_TIME_WINDOW`, `BAD_USER_ID`,
+`BAD_SORT`, `INTERNAL_ERROR`. `USER_SUSPENDED` and `USER_UNAVAILABLE` are 404s and
+raise subclasses of `NotFoundError`, so existing `except NotFoundError` handlers
+still catch them.
 
 ## Configuration
 
@@ -289,6 +327,17 @@ Plans and credit top-ups are paid via cryptocurrency: **USDT (BEP-20)**,
 **USDC (BEP-20)**, **SOL**, and **POL**. Credit card payments via Stripe are
 coming soon. See [xcrop.io/pricing](https://xcrop.io/pricing) and the
 dashboard billing page to manage your subscription.
+
+## Response fields
+
+User objects gain `location`, `website`, `banner_image`, `likes_count`, `media_count`,
+`protected`, `can_dm`, `pinned_tweet_ids`, `automated`, `automated_by`, `affiliation`
+(`label`, `username`, `badge_url`) and, on community lists, `community_role`. Tweets gain
+`url`, `lang`, `source`, `in_reply_to`, `quoted_tweet` / `retweeted_tweet` (one level deep),
+`is_long_post`, `entities`, `possibly_sensitive`, `edit`, `has_community_notes`, `place`,
+`card`, `metrics.quotes` and richer `author` (`followers`, `verified`, `verified_type`,
+`profile_image`). `text` is the full text of a long post. All new fields are nullable;
+see `xcrop/types.py` for the TypedDicts.
 
 ## API Response Format
 

@@ -1,9 +1,7 @@
-"""Communities resource — community profile, tweets, members.
+"""Communities resource: community profile, tweets, members, moderators.
 
-.. note::
-    Communities endpoints are **beta** on the XCROP API and may return a
-    ``503`` while the underlying data source is still being rolled out.
-    Handle :class:`~xcrop.errors.ServerError` accordingly.
+Members, moderators and tweets may return more rows than ``count`` (X serves
+whole pages), so treat ``count`` as a minimum on those lists.
 """
 
 from __future__ import annotations
@@ -46,8 +44,8 @@ class _CommunityPaginatedEndpoint:
         Args:
             community_id: The community ID.
             count: Total number of items to yield.
-            sort: Sort order (endpoint-dependent, e.g. "latest"/"popular"/"engagement"
-                for tweets, "default"/"followers"/"name" for members).
+            sort: ``members`` and ``moderators`` only: "default" or "name".
+                ``tweets`` has no sort option.
             max_pages: Safety limit on pages fetched (default 100).
         """
         cursor: Optional[str] = None
@@ -130,24 +128,23 @@ class _AsyncCommunityPaginatedEndpoint:
 
 
 class CommunitiesResource:
-    """Sync communities resource (beta — endpoints may return 503)."""
+    """Sync communities resource."""
 
     def __init__(self, transport: HttpTransport) -> None:
         self._transport = transport
         self.tweets = _CommunityPaginatedEndpoint(transport, "/communities/{communityId}/tweets")
         self.members = _CommunityPaginatedEndpoint(transport, "/communities/{communityId}/members")
+        self.moderators = _CommunityPaginatedEndpoint(
+            transport, "/communities/{communityId}/moderators",
+        )
 
     def get(self, community_id: str) -> ApiResponse:
-        """Get community details by ID.
-
-        Beta endpoint — may return a 503 (``ServerError``) while the
-        underlying data source is still being rolled out.
-        """
+        """Get community details by ID."""
         return self._transport.get(f"/communities/{community_id}")
 
 
 class AsyncCommunitiesResource:
-    """Async communities resource (beta — endpoints may return 503)."""
+    """Async communities resource."""
 
     def __init__(self, transport: AsyncHttpTransport) -> None:
         self._transport = transport
@@ -157,11 +154,10 @@ class AsyncCommunitiesResource:
         self.members = _AsyncCommunityPaginatedEndpoint(
             transport, "/communities/{communityId}/members",
         )
+        self.moderators = _AsyncCommunityPaginatedEndpoint(
+            transport, "/communities/{communityId}/moderators",
+        )
 
     async def get(self, community_id: str) -> ApiResponse:
-        """Get community details by ID.
-
-        Beta endpoint — may return a 503 (``ServerError``) while the
-        underlying data source is still being rolled out.
-        """
+        """Get community details by ID."""
         return await self._transport.get(f"/communities/{community_id}")

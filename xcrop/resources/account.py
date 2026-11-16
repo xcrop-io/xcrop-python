@@ -51,6 +51,15 @@ class AccountResource:
         """Disconnect the X account and remove stored credentials."""
         return self._transport.delete("/account/disconnect")
 
+    def credits(self) -> ApiResponse:
+        """Get the current credit balance for the API key's account (free).
+
+        ``data`` has ``plan``, ``plan_credits``, ``plan_used``, ``plan_remaining``,
+        ``topup_remaining``, ``total_remaining``, ``period_start``, ``period_end``
+        and ``rate_limit_per_minute``.
+        """
+        return self._transport.get("/account/credits")
+
 
 class AsyncAccountResource:
     """Async account resource."""
@@ -90,3 +99,7 @@ class AsyncAccountResource:
 
     async def disconnect(self) -> Dict[str, Any]:
         return await self._transport.delete("/account/disconnect")
+
+    async def credits(self) -> ApiResponse:
+        """Get the current credit balance for the API key's account (free)."""
+        return await self._transport.get("/account/credits")
