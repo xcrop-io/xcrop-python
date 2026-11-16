@@ -49,7 +49,6 @@ class _PaginatedEndpoint:
         Args:
             username: The X username. Also accepts ``"id:<digits>"``.
             count: Number of items to request *per page* from the API (max 100).
-                Some lists (members, replies) may return more rows than ``count``.
             cursor: Pagination cursor from a previous response.
             user_id: Numeric X user id, used instead of ``username``.
             since: Only items at or after this time (unix seconds or ISO date).
@@ -215,6 +214,11 @@ def _batch_body(
     raise ValueError("Provide usernames or ids.")
 
 
+def _user_action_path(action: str, username: Optional[str], user_id: Optional[Union[str, int]]) -> str:
+    uid = None if user_id is None else str(user_id)
+    return user_path("/users/{username}/" + action, username, uid)
+
+
 # ---------------------------------------------------------------------------
 # Sync resource
 # ---------------------------------------------------------------------------
@@ -314,6 +318,25 @@ class UsersResource:
         """Unfollow a user (requires connected account)."""
         return self._transport.delete(f"/users/{username}/follow")
 
+    def mute(self, username: Optional[str] = None, *, user_id: Optional[Union[str, int]] = None) -> Dict[str, Any]:
+        """Mute a user (requires connected account). ``username`` or ``"id:<digits>"`` or ``user_id=``.
+
+        ``data`` is ``{user_id, username, muted: True, already}``.
+        """
+        return self._transport.post(_user_action_path("mute", username, user_id))
+
+    def unmute(self, username: Optional[str] = None, *, user_id: Optional[Union[str, int]] = None) -> Dict[str, Any]:
+        """Unmute a user (requires connected account)."""
+        return self._transport.delete(_user_action_path("mute", username, user_id))
+
+    def block(self, username: Optional[str] = None, *, user_id: Optional[Union[str, int]] = None) -> Dict[str, Any]:
+        """Block a user (requires connected account). ``data`` is ``{user_id, username, blocked: True, already}``."""
+        return self._transport.post(_user_action_path("block", username, user_id))
+
+    def unblock(self, username: Optional[str] = None, *, user_id: Optional[Union[str, int]] = None) -> Dict[str, Any]:
+        """Unblock a user (requires connected account)."""
+        return self._transport.delete(_user_action_path("block", username, user_id))
+
 
 # ---------------------------------------------------------------------------
 # Async resource
@@ -408,3 +431,15 @@ class AsyncUsersResource:
 
     async def unfollow(self, username: str) -> Dict[str, Any]:
         return await self._transport.delete(f"/users/{username}/follow")
+
+    async def mute(self, username: Optional[str] = None, *, user_id: Optional[Union[str, int]] = None) -> Dict[str, Any]:
+        return await self._transport.post(_user_action_path("mute", username, user_id))
+
+    async def unmute(self, username: Optional[str] = None, *, user_id: Optional[Union[str, int]] = None) -> Dict[str, Any]:
+        return await self._transport.delete(_user_action_path("mute", username, user_id))
+
+    async def block(self, username: Optional[str] = None, *, user_id: Optional[Union[str, int]] = None) -> Dict[str, Any]:
+        return await self._transport.post(_user_action_path("block", username, user_id))
+
+    async def unblock(self, username: Optional[str] = None, *, user_id: Optional[Union[str, int]] = None) -> Dict[str, Any]:
+        return await self._transport.delete(_user_action_path("block", username, user_id))

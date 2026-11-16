@@ -11,14 +11,18 @@ from .resources import (
     AccountResource,
     AsyncAccountResource,
     AsyncCommunitiesResource,
+    AsyncDmResource,
     AsyncListsResource,
+    AsyncMediaResource,
     AsyncSearchResource,
     AsyncStreamResource,
     AsyncTrendingResource,
     AsyncTweetsResource,
     AsyncUsersResource,
     CommunitiesResource,
+    DmResource,
     ListsResource,
+    MediaResource,
     SearchResource,
     StreamResource,
     TrendingResource,
@@ -66,6 +70,8 @@ class XCropClient:
         self.trending = TrendingResource(self._transport)
         self.account = AccountResource(self._transport)
         self.stream = StreamResource(self._transport)
+        self.dm = DmResource(self._transport)
+        self.media = MediaResource(self._transport)
 
     def close(self) -> None:
         """Close the underlying HTTP client."""
@@ -113,6 +119,8 @@ class AsyncXCropClient:
         self.trending = AsyncTrendingResource(self._transport)
         self.account = AsyncAccountResource(self._transport)
         self.stream = AsyncStreamResource(self._transport)
+        self.dm = AsyncDmResource(self._transport)
+        self.media = AsyncMediaResource(self._transport)
 
     async def close(self) -> None:
         """Close the underlying HTTP client."""

@@ -21,6 +21,17 @@ class Meta(TypedDict, total=False):
     # Conversation endpoint only
     sort: str  # "latest" | "relevance" | "likes"
     thread_context: List["Tweet"]  # tweets above a mid-thread tweet, oldest first
+    # users.batch(usernames): suspended / deactivated accounts among the not-found ones (1.2.0)
+    unavailable: List["UnavailableUser"]
+    # trending: when the list was taken (1.2.0, may be absent)
+    as_of: str
+
+
+class UnavailableUser(TypedDict, total=False):
+    """Entry of ``meta.unavailable`` on ``users.batch``."""
+
+    username: str
+    reason: str  # "suspended" | "deactivated" | ...
 
 
 class ApiResponse(TypedDict, total=False):
@@ -146,6 +157,19 @@ class TweetAuthor(TypedDict, total=False):
     verified: Optional[bool]
     verified_type: Optional[str]
     profile_image: Optional[str]
+    # Added in 1.2.0 (nullable)
+    description: Optional[str]
+    location: Optional[str]
+    following: Optional[int]
+    tweets_count: Optional[int]
+    likes_count: Optional[int]
+    media_count: Optional[int]
+    listed: Optional[int]
+    created_at: Optional[str]
+    banner_image: Optional[str]
+    can_dm: Optional[bool]
+    automated: Optional[bool]
+    pinned_tweet_ids: Optional[List[str]]
 
 
 class TweetInReplyTo(TypedDict, total=False):
@@ -164,6 +188,11 @@ class TweetPlace(TypedDict, total=False):
     full_name: Optional[str]
     country: Optional[str]
     country_code: Optional[str]
+    # Added in 1.2.0
+    id: Optional[str]
+    name: Optional[str]
+    place_type: Optional[str]
+    bounding_box: Optional[Any]  # nested coordinate arrays
 
 
 class TweetCard(TypedDict, total=False):
@@ -180,14 +209,37 @@ class TweetEntities(TypedDict, total=False):
     symbols: List[Any]
 
 
+class VideoVariant(TypedDict, total=False):
+    bitrate: Optional[int]  # None for the m3u8 variant
+    content_type: Optional[str]
+    url: Optional[str]
+
+
+class TweetVideo(TypedDict, total=False):
+    duration_ms: Optional[int]
+    aspect_ratio: Optional[List[int]]  # [width, height]
+    variants: List[VideoVariant]
+
+
+class TweetCommunity(TypedDict, total=False):
+    id: Optional[str]
+    name: Optional[str]
+
+
 class TweetMedia(TypedDict, total=False):
     type: str
     url: str
     preview_image_url: str
-    width: int
-    height: int
+    width: Optional[int]
+    height: Optional[int]
     duration_ms: int
-    alt_text: str
+    alt_text: Optional[str]
+    video_url: Optional[str]
+    # Added in 1.2.0 (nullable)
+    media_key: Optional[str]
+    display_url: Optional[str]
+    expanded_url: Optional[str]
+    video: Optional[TweetVideo]
 
 
 class Tweet(TypedDict, total=False):
@@ -220,6 +272,12 @@ class Tweet(TypedDict, total=False):
     has_community_notes: Optional[bool]
     place: Optional[TweetPlace]
     card: Optional[TweetCard]
+    # Added in 1.2.0 (nullable). On a repost the top-level ``metrics`` are the ORIGINAL post's counts.
+    is_pinned: Optional[bool]
+    conversation_controlled: Optional[bool]
+    limited_reply: Optional[bool]
+    display_text_range: Optional[List[int]]  # [start, end]
+    community: Optional[TweetCommunity]
 
 
 # ---------------------------------------------------------------------------
@@ -269,6 +327,7 @@ class CommunityTopic(TypedDict, total=False):
 
 
 class CommunityRule(TypedDict, total=False):
+    id: Optional[str]  # added in 1.2.0
     name: str
     description: str
 
@@ -291,7 +350,7 @@ class Community(TypedDict, total=False):
     rules: List[CommunityRule]
     creator: Optional[User]
     admin: Optional[User]
-    members_preview: List[Any]
+    members_preview: List[User]  # user objects (fixed in 1.2.0: was typed as avatar URL strings)
     url: Optional[str]
 
 
@@ -332,6 +391,50 @@ class AccountCredits(TypedDict, total=False):
     period_start: str  # ISO 8601
     period_end: str  # ISO 8601
     rate_limit_per_minute: int
+
+
+# ---------------------------------------------------------------------------
+# Write API results (1.2.0): ``data`` of each write response
+# ---------------------------------------------------------------------------
+
+class TweetToggleResult(TypedDict, total=False):
+    """``tweets.bookmark/unbookmark/pin/unpin``. ``already``: X said it was already in that state."""
+
+    tweet_id: str
+    bookmarked: bool  # bookmark / unbookmark
+    pinned: bool  # pin / unpin
+    already: bool
+
+
+class UserToggleResult(TypedDict, total=False):
+    """``users.mute/unmute/block/unblock``."""
+
+    user_id: str
+    username: Optional[str]
+    muted: bool  # mute / unmute
+    blocked: bool  # block / unblock
+    already: bool
+
+
+class ProfileUpdateResult(TypedDict, total=False):
+    """``account.update_profile``."""
+
+    updated: List[str]
+
+
+class DmSendResult(TypedDict, total=False):
+    """``dm.send``."""
+
+    recipient_id: str
+    username: Optional[str]
+    message_id: str
+    conversation_id: str
+
+
+class MediaUploadResult(TypedDict, total=False):
+    """``media.upload``: pass ``media_id`` to ``tweets.create(media_ids=[...])``."""
+
+    media_id: str
 
 
 # ---------------------------------------------------------------------------

@@ -8,6 +8,19 @@ from .._http import AsyncHttpTransport, HttpTransport
 from ..types import AccountStatus as AccountStatusType, ApiResponse
 
 
+def _profile_body(
+    name: Optional[str],
+    description: Optional[str],
+    location: Optional[str],
+    url: Optional[str],
+) -> Dict[str, Any]:
+    fields = {"name": name, "description": description, "location": location, "url": url}
+    body = {k: v for k, v in fields.items() if v is not None}
+    if not body:
+        raise ValueError("Pass at least one of: name, description, location, url.")
+    return body
+
+
 class AccountResource:
     """Sync account resource for managing X account connections."""
 
@@ -60,6 +73,24 @@ class AccountResource:
         """
         return self._transport.get("/account/credits")
 
+    def update_profile(
+        self,
+        *,
+        name: Optional[str] = None,
+        description: Optional[str] = None,
+        location: Optional[str] = None,
+        url: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Edit the connected account's profile (requires connected account).
+
+        Only the fields you pass change. Limits: name 50, description 160,
+        location 30, url 100 characters. ``data`` is ``{"updated": [...]}``.
+
+        Raises:
+            ValueError: If no field is given.
+        """
+        return self._transport.post("/account/profile", body=_profile_body(name, description, location, url))
+
 
 class AsyncAccountResource:
     """Async account resource."""
@@ -103,3 +134,16 @@ class AsyncAccountResource:
     async def credits(self) -> ApiResponse:
         """Get the current credit balance for the API key's account (free)."""
         return await self._transport.get("/account/credits")
+
+    async def update_profile(
+        self,
+        *,
+        name: Optional[str] = None,
+        description: Optional[str] = None,
+        location: Optional[str] = None,
+        url: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Edit the connected account's profile. See :meth:`AccountResource.update_profile`."""
+        return await self._transport.post(
+            "/account/profile", body=_profile_body(name, description, location, url),
+        )

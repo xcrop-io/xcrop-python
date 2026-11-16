@@ -43,7 +43,18 @@ def _raise_for_status(response: httpx.Response) -> None:
     """Raise a typed exception based on the HTTP status code."""
     if response.is_success:
         return
+    try:
+        _raise_typed(response)
+    except XCropError as exc:
+        # X's own wording on a refused or missing write (body field ``x_reason``).
+        try:
+            exc.x_reason = response.json().get("x_reason")
+        except Exception:
+            exc.x_reason = None
+        raise
 
+
+def _raise_typed(response: httpx.Response) -> None:
     status = response.status_code
     try:
         body = response.json()

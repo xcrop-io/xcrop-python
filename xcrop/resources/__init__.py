@@ -8,6 +8,8 @@ from .communities import CommunitiesResource, AsyncCommunitiesResource
 from .trending import TrendingResource, AsyncTrendingResource
 from .account import AccountResource, AsyncAccountResource
 from .stream import StreamResource, AsyncStreamResource
+from .dm import DmResource, AsyncDmResource
+from .media import MediaResource, AsyncMediaResource
 
 __all__ = [
     "UsersResource",
@@ -26,4 +28,8 @@ __all__ = [
     "AsyncAccountResource",
     "StreamResource",
     "AsyncStreamResource",
+    "DmResource",
+    "AsyncDmResource",
+    "MediaResource",
+    "AsyncMediaResource",
 ]

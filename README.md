@@ -1,6 +1,6 @@
 # XCROP Python SDK
 
-Official Python client for the [XCROP API](https://xcrop.io), the X/Twitter data intelligence platform. 47 endpoints covering profile lookup, timelines, search, lists, communities, account monitoring, write operations, and interaction/eligibility checks.
+Official Python client for the [XCROP API](https://xcrop.io), the X/Twitter data intelligence platform. 58 endpoints covering profile lookup, timelines, search, lists, communities, account monitoring, write operations, and interaction/eligibility checks.
 
 ## Installation
 
@@ -106,6 +106,9 @@ print(conv["meta"]["sort"], conv["meta"]["thread_context"])  # tweets above a mi
 for quote in client.tweets.quotes.paginate("1234567890", count=100, since="2026-11-01"):
     print(quote["text"])
 
+# include_replies=False leaves replies out (default true; also on lists.tweets)
+quotes = client.tweets.quotes("1234567890", include_replies=False)
+
 # Who reposted a tweet (user objects, 1 credit per user)
 reposters = client.tweets.retweeters("1234567890", count=100)
 for user in client.tweets.retweeters.paginate("1234567890", count=500):
@@ -114,7 +117,7 @@ for user in client.tweets.retweeters.paginate("1234567890", count=500):
 # Batch lookup
 tweets = client.tweets.batch(["123", "456", "789"])
 
-# Write operations (requires connected account)
+# Write operations (requires connected account, see "Write API" below)
 result = client.tweets.create(text="Hello from XCROP SDK!")
 client.tweets.reply(tweet_id="1234567890", text="Great thread!")
 client.tweets.quote(tweet_id="1234567890", text="Interesting take")
@@ -173,8 +176,8 @@ subscribers = client.lists.subscribers("1234567890")
 for tweet in client.lists.tweets.paginate("1234567890", count=200):
     print(tweet["text"])
 
-# Time window on list tweets
-recent = client.lists.tweets("1234567890", since="2026-11-01")
+# Time window on list tweets, replies left out
+recent = client.lists.tweets("1234567890", since="2026-11-01", include_replies=False)
 ```
 
 ### Trending
@@ -199,7 +202,8 @@ for tweet in client.communities.tweets.paginate(cid, count=200):
 ```
 
 Members, moderators and tweets may return more rows than `count` (X serves whole
-pages), so treat `count` as a minimum there.
+pages), so treat `count` as a minimum there. `users.replies` returns exactly `count`
+rows; its `next_cursor` may be an opaque string starting `xo1.`, pass it back unchanged.
 
 ### Account Management
 
@@ -220,6 +224,41 @@ client.account.disconnect()
 # Credit balance (free)
 credits = client.account.credits()
 print(credits["data"]["total_remaining"], credits["data"]["period_end"])
+```
+
+### Write API
+
+All write calls need a connected X account (`client.account.connect(...)`), a key with
+write permission and a paid plan. Each costs 100 credits flat and answers
+`{"success": True, "data": {...}, "meta": {"latency_ms": ...}}`. `already` in `data` is true
+when X reports the target was already in that state.
+
+```python
+# Bookmark / pin (pin works on your own posts only; another account's post is 400 X_REFUSED)
+client.tweets.bookmark("1234567890")    # data: {tweet_id, bookmarked: True, already}
+client.tweets.unbookmark("1234567890")
+client.tweets.pin("1234567890")         # data: {tweet_id, pinned: True, already}
+client.tweets.unpin("1234567890")
+
+# Mute / block, by username or "id:<digits>" (or user_id=)
+client.users.mute("jack")               # data: {user_id, username, muted: True, already}
+client.users.unmute("id:12")
+client.users.block("jack")              # data: {user_id, username, blocked: True, already}
+client.users.unblock(user_id=12)
+
+# Edit the profile (only the fields you pass change; max 50 / 160 / 30 / 100 characters)
+client.account.update_profile(name="New name", description="New bio")  # data: {updated: [...]}
+
+# Direct message
+client.dm.send("jack", "hello")         # data: {recipient_id, username, message_id, conversation_id}
+
+# Upload media (bytes or base64; jpeg, png, webp, gif or mp4, max 5 MB) then attach it
+up = client.media.upload(open("pic.png", "rb").read(), "image/png")
+client.tweets.create("with a picture", media_ids=[up["data"]["media_id"]])
+
+# Post into a community. community_id is a string of digits (a number is rejected,
+# BAD_COMMUNITY_ID); community posts are limited to 280 characters.
+client.tweets.create("hello community", community_id="1493446837214187523")
 ```
 
 ### Real-time Stream
@@ -281,7 +320,10 @@ except XCropError as e:
 Every error exposes `.code` (alias of `.error_code`) and, on some 404s, `.reason`.
 `xcrop.ErrorCode` holds the known values: `NOT_FOUND`, `USER_SUSPENDED`,
 `USER_UNAVAILABLE`, `BAD_COMMUNITY_ID`, `BAD_TIME_WINDOW`, `BAD_USER_ID`,
-`BAD_SORT`, `INTERNAL_ERROR`. `USER_SUSPENDED` and `USER_UNAVAILABLE` are 404s and
+`BAD_SORT`, `INTERNAL_ERROR`, and for writes `X_REFUSED` (400, X refused the write;
+`e.x_reason` may carry detail), `DM_NOT_ALLOWED` (403), `NO_X_ACCOUNT` (403),
+`PERMISSION_DENIED` (403), `PLAN_UPGRADE_REQUIRED` (403) and `SESSION_EXPIRED` (401).
+A missing post or user on a write is a 404 `NOT_FOUND` with `e.x_reason`. `USER_SUSPENDED` and `USER_UNAVAILABLE` are 404s and
 raise subclasses of `NotFoundError`, so existing `except NotFoundError` handlers
 still catch them.
 
@@ -338,6 +380,17 @@ User objects gain `location`, `website`, `banner_image`, `likes_count`, `media_c
 `card`, `metrics.quotes` and richer `author` (`followers`, `verified`, `verified_type`,
 `profile_image`). `text` is the full text of a long post. All new fields are nullable;
 see `xcrop/types.py` for the TypedDicts.
+
+Added in 1.2.0, all nullable. Tweet: `is_pinned`, `conversation_controlled`, `limited_reply`,
+`display_text_range`, `community` (`id`, `name`); `author` gains `description`, `location`,
+`following`, `tweets_count`, `likes_count`, `media_count`, `listed`, `created_at`, `banner_image`,
+`can_dm`, `automated`, `pinned_tweet_ids`; `media[]` gains `alt_text`, `media_key`, `display_url`,
+`expanded_url`, `width`, `height`, `video` (`duration_ms`, `aspect_ratio`, `variants`); `place`
+gains `id`, `name`, `place_type`, `bounding_box`. On a repost the top-level `metrics` are the
+original post's counts. Community `rules[]` gain `id`, and `members_preview` is now a list of user
+objects (a fix: it was typed as avatar URL strings). `users.batch(usernames)` may carry
+`meta.unavailable` (`[{username, reason}]`) and trending `meta.as_of`. Followers and following
+are newest first.
 
 ## API Response Format
 

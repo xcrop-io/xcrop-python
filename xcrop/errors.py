@@ -17,6 +17,13 @@ class ErrorCode:
     BAD_USER_ID = "BAD_USER_ID"
     BAD_SORT = "BAD_SORT"
     INTERNAL_ERROR = "INTERNAL_ERROR"
+    # Write API (1.2.0)
+    X_REFUSED = "X_REFUSED"  # 400, X refused the write; ``x_reason`` may carry detail
+    DM_NOT_ALLOWED = "DM_NOT_ALLOWED"  # 403, the recipient's DM settings refuse this account
+    NO_X_ACCOUNT = "NO_X_ACCOUNT"  # 403, no X account connected (POST /account/connect)
+    PERMISSION_DENIED = "PERMISSION_DENIED"  # 403, API key has no write permission
+    PLAN_UPGRADE_REQUIRED = "PLAN_UPGRADE_REQUIRED"  # 403, writes need a paid plan
+    SESSION_EXPIRED = "SESSION_EXPIRED"  # 401, reconnect the X account
 
 
 class XCropError(Exception):
@@ -29,6 +36,7 @@ class XCropError(Exception):
         error_code: Optional[str] = None,
         response: Optional[object] = None,
         reason: Optional[str] = None,
+        x_reason: Optional[str] = None,
     ) -> None:
         self.message = message
         self.status_code = status_code
@@ -36,6 +44,8 @@ class XCropError(Exception):
         self.response = response
         # Extra detail on some 404s (e.g. "suspended", "deactivated", "not_found").
         self.reason = reason
+        # X's own wording on a refused or missing write (body field ``x_reason``), if any.
+        self.x_reason = x_reason
         super().__init__(message)
 
     @property
